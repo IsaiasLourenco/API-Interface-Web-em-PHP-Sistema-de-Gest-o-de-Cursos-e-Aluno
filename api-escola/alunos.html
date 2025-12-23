@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Gestão de Alunos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div>
+            <h2>Home</h2>
+            <button class="button" onclick="window.location.href='index.html'">Listar Cursos</button>
+        </div>
+        <h1>Gestão de Alunos</h1>
+
+        <!-- Formulário de adicionar aluno -->
+        <section>
+            <h2 class="subtitle">Adicionar Aluno</h2>
+            <form id="addForm">
+                <div class="form-group">
+                    <label for="nome">Nome:</label>
+                    <input type="text" id="nome" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="curso">Curso:</label>
+                    <select id="curso" required></select>
+                </div>
+
+                <button class="button" type="submit">Salvar</button>
+            </form>
+        </section>
+
+        <!-- Lista de alunos -->
+        <section>
+            <h2>Lista de Alunos</h2>
+            <div id="alunos" class="alunos-list"></div>
+        </section>
+
+        <script>
+            const apiUrl = "http://localhost/moodle-integracao-api/api-escola/alunos.php";
+
+            // Carregar alunos
+            async function carregarAlunos() {
+                const res = await fetch(apiUrl);
+                const data = await res.json();
+                const container = document.getElementById("alunos");
+                container.innerHTML = "";
+
+                data.forEach(aluno => {
+                    const card = document.createElement("div");
+                    card.className = "aluno-item";
+                    card.innerHTML = `
+                        <h3>${aluno.nome}</h3>
+                        <p><strong>Email:</strong> ${aluno.email}</p>
+                        <p><strong>Curso:</strong> ${aluno.curso}</p>
+                        <div class="actions">
+                            <button class="buttonEd" onclick="editarAluno(${aluno.id})">Editar</button>
+                            <button class="buttonDel" onclick="excluirAluno(${aluno.id})">Excluir</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            // Adicionar aluno
+            document.getElementById("addForm").addEventListener("submit", async e => {
+                e.preventDefault();
+
+                const aluno = {
+                    nome: document.getElementById("nome").value,
+                    email: document.getElementById("email").value,
+                    curso_id: document.getElementById("curso").value
+                };
+
+                await fetch(apiUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(aluno)
+                });
+                carregarCursosSelect();
+                carregarAlunos();
+                e.target.reset();
+            });
+
+            // Editar aluno
+            async function editarAluno(id) {
+                const nome = prompt("Novo nome:");
+                const email = prompt("Novo email:");
+                const curso = prompt("Novo curso:");
+
+                if (!nome || !email || !curso) return;
+
+                await fetch(apiUrl, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id, nome, email, curso_id: curso })
+                });
+
+                carregarAlunos();
+            }
+
+            // Excluir aluno
+            async function excluirAluno(id) {
+                if (confirm("Tem certeza que deseja excluir este aluno?")) {
+                    await fetch(apiUrl, {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id })
+                    });
+                    carregarAlunos();
+                }
+            }
+
+            carregarAlunos();
+        </script>
+    </div>
+
+    <div id="editModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Editar Aluno</h2>
+            <form id="editForm">
+                <input type="hidden" id="editId">
+
+                <div class="form-group">
+                    <label for="editNome">Nome:</label>
+                    <input type="text" id="editNome" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editEmail">Email:</label>
+                    <input type="email" id="editEmail" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editCurso">Curso:</label>
+                    <select id="editCurso" required></select>
+                </div>
+
+                <button class="button" type="submit">Salvar Alterações</button>
+                <button class="button" type="button" onclick="fecharModal()">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+</body>
+
+</html>
+
+<script>
+    const apiCursos = "http://localhost/moodle-integracao-api/api-escola/cursos.php";
+
+    async function carregarCursosSelect() {
+        const res = await fetch(apiCursos);
+        const cursos = await res.json();
+
+        const select = document.getElementById("curso");
+        select.innerHTML = "";
+
+        // 👉 Adiciona uma opção inicial em branco
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Selecione um curso...";
+        defaultOption.disabled = true;
+        defaultOption.selected = true;
+        select.appendChild(defaultOption);
+
+        // 👉 Adiciona os cursos reais
+        cursos.forEach(curso => {
+            const option = document.createElement("option");
+            option.value = curso.id;
+            option.textContent = curso.nome;
+            select.appendChild(option);
+        });
+    }
+    carregarCursosSelect();
+    carregarAlunos();
+
+    async function editarAluno(id) {
+        const res = await fetch(apiUrl);
+        const alunos = await res.json();
+        const aluno = alunos.find(a => a.id === id);
+
+        document.getElementById("editId").value = aluno.id;
+        document.getElementById("editNome").value = aluno.nome;
+        document.getElementById("editEmail").value = aluno.email;
+
+        await carregarCursosEditSelect(aluno.curso_id);
+
+        document.getElementById("editModal").classList.remove("hidden");
+    }
+
+    async function carregarCursosEditSelect(selecionadoId) {
+        const res = await fetch(apiCursos);
+        const cursos = await res.json();
+
+        const select = document.getElementById("editCurso");
+        select.innerHTML = "";
+
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Selecione um curso...";
+        defaultOption.disabled = true;
+        select.appendChild(defaultOption);
+
+        cursos.forEach(curso => {
+            const option = document.createElement("option");
+            option.value = curso.id;
+            option.textContent = curso.nome;
+            if (curso.id == selecionadoId) option.selected = true;
+            select.appendChild(option);
+        });
+    }
+
+    function fecharModal() {
+        document.getElementById("editModal").classList.add("hidden");
+    }
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+            fecharModal();
+        }
+    });
+
+    document.getElementById("editForm").addEventListener("submit", async e => {
+        e.preventDefault();
+
+        const aluno = {
+            id: document.getElementById("editId").value,
+            nome: document.getElementById("editNome").value,
+            email: document.getElementById("editEmail").value,
+            curso_id: document.getElementById("editCurso").value
+        };
+
+        await fetch(apiUrl, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(aluno)
+        });
+
+        fecharModal();
+        carregarAlunos();
+    });
+</script>
